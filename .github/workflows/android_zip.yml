@@ -1,0 +1,66 @@
+name: Unzip and Build Kotlin APK
+on: [push, pull_request]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Force Create Missing Android Structure (CRITICAL FIX)
+      run: |
+        # ग्रैडल कैशे एरर को रोकने के लिए खुद नया ढांचा तैयार करना
+        mkdir -p app/src/main/java/com/example/jarvis
+        mkdir -p app/src/main/res/values
+        
+        # ज़िप फ़ाइल को अनज़िप करना
+        unzip project.zip -d ./app_source || true
+        
+        # फ़ाइलों को उनकी सही जगह पर कॉपी करना
+        cp app_source/*.kt app/src/main/java/com/example/jarvis/ 2>/dev/null || true
+        cp app_source/AndroidManifest.xml app/src/main/ 2>/dev/null || true
+        
+        # गिटहब के कंप्यूटर के लिए एकदम सटीक सेटिंग्स खुद लिखना ताकि एरर बिल्कुल न आए
+        echo "include ':app'" > settings.gradle
+        echo "plugins { id 'com.android.application' version '8.1.0' id 'org.jetbrains.kotlin.android' version '1.8.20' apply false }" > build.gradle
+        
+        echo "plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }
+        android {
+            compileSdk 33
+            defaultConfig {
+                applicationId 'com.example.jarvis'
+                minSdk 21
+                targetSdk 33
+                versionCode 1
+                versionName '1.0'
+            }
+            kotlinOptions { jvmTarget = '17' }
+        }
+        dependencies {
+            implementation 'androidx.core:core-ktx:1.10.1'
+        }" > app/build.gradle
+
+    - name: Compile and Setup Wrapper
+      run: |
+        gradle wrapper --gradle-version 8.1.1
+        chmod +x gradlew
+
+    - name: Build Debug APK
+      run: |
+        ./gradlew assembleDebug --no-daemon
+
+    - name: Upload Finished APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Jarvis-Kotlin-APK
+        path: "app/build/outputs/apk/debug/*.apk"
