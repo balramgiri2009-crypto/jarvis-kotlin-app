@@ -1,0 +1,49 @@
+name: Unzip and Build Kotlin APK
+on: [push, pull_request]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Unzip Project Files
+      run: |
+        # ज़िप फ़ाइल को अनज़िप करने का कमांड
+        unzip project.zip -d ./app_source || true
+        # फ़ाइलों को सही एंड्रॉइड स्ट्रक्चर में मूव करना
+        mkdir -p app/src/main/java/com/example/jarvis
+        mkdir -p app/src/main/res/values
+        
+        mv app_source/*.kt app/src/main/java/com/example/jarvis/ 2>/dev/null || true
+        mv app_source/AndroidManifest.xml app/src/main/ 2>/dev/null || true
+        mv app_source/strings.xml app/src/main/res/values/ 2>/dev/null || true
+        mv app_source/colors.xml app/src/main/res/values/ 2>/dev/null || true
+        mv app_source/themes.xml app/src/main/res/values/ 2>/dev/null || true
+
+    - name: Setup Gradle Runtime Engine
+      run: |
+        # नया और फ्रेश ग्रैडल कंपाइलर इंजन खड़ा करना
+        gradle init --type basic --dsl kotlin || true
+        chmod +x gradlew || true
+
+    - name: Compile and Build Debug APK
+      run: |
+        ./gradlew assembleDebug --no-daemon || gradle assembleDebug --no-daemon
+
+    - name: Upload Finished APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Jarvis-Kotlin-APK
+        path: "**/build/outputs/apk/debug/*.apk"
